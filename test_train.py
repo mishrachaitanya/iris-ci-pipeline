@@ -14,6 +14,18 @@ from train import (
 from sklearn.datasets import load_iris
 from sklearn.metrics import accuracy_score
 
+def test_data_validity():
+    """Sanity check on dataset shape, types, and no NaNs."""
+    X_train, X_test, y_train, y_test = load_data()
+
+    # basic shape checks
+    assert X_train.shape[1] == 4, "Expected 4 features in Iris"
+    assert not X_train.isnull().any().any(), "Missing values in train"
+    assert not X_test.isnull().any().any(), "Missing values in test"
+
+    # target checks
+    assert set(y_train.unique()).issubset({0, 1, 2}), "Unexpected target labels"
+
 
 def test_saved_model_prediction(tmp_path):
     """Trains model, checks prediction and metrics.csv"""
@@ -61,4 +73,3 @@ def test_random_input_on_saved_model():
 
     pred = model.predict(df_sample)[0]
     assert pred in [0, 1, 2], f"Prediction {pred} is invalid"
-
