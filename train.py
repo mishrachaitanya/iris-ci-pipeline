@@ -1,5 +1,5 @@
 # train.py
-#ANother commentw
+
 import argparse
 import joblib
 import csv
@@ -15,36 +15,35 @@ def load_data():
     return train_test_split(X, y, test_size=0.2, random_state=42)
 
 
-def train_model(X_train, y_train, n_estimators=100, max_depth=4):
-    clf = RandomForestClassifier(
-        n_estimators=n_estimators,
-        max_depth=max_depth,
-        random_state=42,
-    )
-    clf.fit(X_train, y_train)
-    return clf
+def train_model_with_epochs(X_train, y_train, X_test, y_test, model_path="model.joblib", metrics_path="metrics.csv", epochs=5):
+    metrics = []
 
+    print("Training started...")
+    for epoch in range(1, epochs + 1):
+        clf = RandomForestClassifier(n_estimators=10 * epoch, random_state=epoch)
+        clf.fit(X_train, y_train)
 
-def evaluate_model(model, X_test, y_test):
-    y_proba = model.predict_proba(X_test)
-    y_pred = model.predict(X_test)
-    acc = accuracy_score(y_test, y_pred)
-    loss = log_loss(y_test, y_proba)
-    return {"accuracy": acc, "loss": loss}
+        y_pred = clf.predict(X_test)
+        y_proba = clf.predict_proba(X_test)
 
+        acc = accuracy_score(y_test, y_pred)
+        loss = log_loss(y_test, y_proba)
+        metrics.append({"epoch": epoch, "accuracy": acc, "loss": loss})
 
-def save_local(model, path: str | Path):
-    path = Path(path)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    joblib.dump(model, path)
-    return path
+        print(f"Epoch {epoch}: Accuracy={acc:.4f}, Loss={loss:.4f}")
 
+        # Save final model
+        if epoch == epochs:
+            joblib.dump(clf, model_path)
+            print(f"Model saved to {model_path}")
 
-def write_metrics(metrics: dict, out_path="metrics.csv"):
-    with open(out_path, "w", newline="") as f:
+    # Save metrics.csv
+    with open(metrics_path, "w", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=["epoch", "accuracy", "loss"])
         writer.writeheader()
-        writer.writerow({"epoch": 1, "accuracy": metrics["accuracy"], "loss": metrics["loss"]})
+        writer.writerows(metrics)
+
+    print(f"Metrics saved to {metrics_path}")
 
 
 if __name__ == "__main__":
@@ -54,12 +53,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     X_train, X_test, y_train, y_test = load_data()
-    model = train_model(X_train, y_train)
-    metrics = evaluate_model(model, X_test, y_test)
-
-    save_local(model, args.model_path)
-    write_metrics(metrics, args.metrics_path)
-
-    print(f"Model saved to {args.model_path}")
-    print(f"Metrics written to {args.metrics_path}")
+    train_model_with_epochs(X_train, y_train, X_test, y_test,
+                            model_path=args.model_path,
+                            metrics_path=args.metrics_path)
 
