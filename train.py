@@ -1,51 +1,95 @@
 # train.py
-
 import argparse
-import joblib
 import csv
+import joblib
 from pathlib import Path
+from typing import Dict, Tuple
+
 from sklearn.datasets import load_iris
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, log_loss
+from sklearn.model_selection import train_test_split
 
 
-def load_data():
+# ---------- data ------------------------------------------------------------
+def load_data() -> Tuple:
+    """Return train / test splits of the Iris dataset."""
     X, y = load_iris(return_X_y=True, as_frame=True)
     return train_test_split(X, y, test_size=0.2, random_state=42)
 
 
-def train_model_with_epochs(X_train, y_train, X_test, y_test, model_path="model.joblib", metrics_path="metrics.csv", epochs=5):
-    metrics = []
+# ---------- single-shot training (used by tests) ----------------------------
+def train_model(
+    X_train,
+    y_train,
+    n_estimators: int = 100,
+    max_depth: int | None = 4,
+):
+    """Train one RandomForest (this is what the tests import)."""
+    clf = RandomForestClassifier(
+        n_estimators=n_estimators,
+        max_depth=max_depth,
+        random_state=42,
+    )
+    clf.fit(X_train, y_train)
+    return clf
 
-    print("Training started...")
+
+def evaluate_model(model, X_test, y_test) -> Dict[str, float]:
+    """Return accuracy & log-loss."""
+    y_pred = model.predict(X_test)
+    y_proba = model.predict_proba(X_test)
+    return {
+        "accuracy": accuracy_score(y_test, y_pred),
+        "loss": log_loss(y_test, y_proba),
+    }
+
+
+def save_local(model, path: str | Path) -> Path:
+    """Persist the model with joblib and return the Path."""
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    joblib.dump(model, path)
+    return path
+
+
+# ---------- multi-epoch demo (CLI entry-point) ------------------------------
+def train_model_with_epochs(
+    X_train,
+    y_train,
+    X_test,
+    y_test,
+    model_path="model.joblib",
+    metrics_path="metrics.csv",
+    epochs: int = 5,
+):
+    """Train a fresh forest each epoch just for demonstration/metrics."""
+    metrics_rows = []
+
+    print("Training started …")
     for epoch in range(1, epochs + 1):
         clf = RandomForestClassifier(n_estimators=10 * epoch, random_state=epoch)
         clf.fit(X_train, y_train)
 
-        y_pred = clf.predict(X_test)
-        y_proba = clf.predict_proba(X_test)
+        scores = evaluate_model(clf, X_test, y_test)
+        metrics_rows.append({"epoch": epoch, **scores})
 
-        acc = accuracy_score(y_test, y_pred)
-        loss = log_loss(y_test, y_proba)
-        metrics.append({"epoch": epoch, "accuracy": acc, "loss": loss})
+        print(f"Epoch {epoch}: accuracy={scores['accuracy']:.4f}   loss={scores['loss']:.4f}")
 
-        print(f"Epoch {epoch}: Accuracy={acc:.4f}, Loss={loss:.4f}")
-
-        # Save final model
+        # keep the last epoch’s model
         if epoch == epochs:
-            joblib.dump(clf, model_path)
+            save_local(clf, model_path)
             print(f"Model saved to {model_path}")
 
-    # Save metrics.csv
+    # write metrics.csv
     with open(metrics_path, "w", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=["epoch", "accuracy", "loss"])
         writer.writeheader()
-        writer.writerows(metrics)
-
+        writer.writerows(metrics_rows)
     print(f"Metrics saved to {metrics_path}")
 
 
+# ---------- CLI -------------------------------------------------------------
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--model-path", default="model.joblib")
@@ -53,7 +97,12 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     X_train, X_test, y_train, y_test = load_data()
-    train_model_with_epochs(X_train, y_train, X_test, y_test,
-                            model_path=args.model_path,
-                            metrics_path=args.metrics_path)
+    train_model_with_epochs(
+        X_train,
+        y_train,
+        X_test,
+        y_test,
+        model_path=args.model_path,
+        metrics_path=args.metrics_path,
+    )
 
