@@ -2,9 +2,9 @@ name: CI - Iris Classifier with Report
 
 on:
   push:
-    branches: ["main","master", "feature/ci", "feature/test-ci"]
+    branches: ["main", "feature/ci", "feature/test-ci"]
   pull_request:
-    branches: ["main", "feature/ci", "master", "feature/test-ci"]
+    branches: ["main", "feature/ci", "feature/test-ci"]
   workflow_dispatch:
 
 permissions:
@@ -44,17 +44,17 @@ jobs:
       env:
         REPO_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        echo "# 🧪 Iris Model Report" > report.md
-        echo "## ✅ Test Output" >> report.md
+        echo "# Iris Model Report" > report.md
+        echo "## Test Output" >> report.md
         echo '```' >> report.md
         cat test_output.txt >> report.md
         echo '```' >> report.md
 
-        echo "## 📊 Training Metrics (Accuracy & Loss per Epoch)" >> report.md
+        echo "## Training Metrics (Accuracy & Loss per Epoch)" >> report.md
         echo '| Epoch | Accuracy | Loss |' >> report.md
         echo '|-------|----------|------|' >> report.md
         tail -n +2 metrics.csv | while IFS=',' read -r epoch acc loss; do
-          printf '| %s | %.4f | %.4f |\n' "$epoch" "$acc" "$loss" >> report.md
+          echo "| $epoch | $acc | $loss |" >> report.md
         done
 
         cml comment create report.md
