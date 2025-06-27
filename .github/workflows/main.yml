@@ -34,7 +34,7 @@ jobs:
 
     - name: Run unit tests
       run: |
-        python -m pytest || echo "Tests failed"
+        python -m pytest | tee test_output.txt || echo "Tests failed"
 
     - name: Train model and generate metrics
       run: |
