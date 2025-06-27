@@ -2,9 +2,9 @@ name: CI - Iris Classifier with Report
 
 on:
   push:
-    branches: ["main", "feature/ci", "feature/test-ci"]
+    branches: ["main", "master", "feature/ci", "feature/test-ci"]
   pull_request:
-    branches: ["main", "feature/ci", "feature/test-ci"]
+    branches: ["main", "master", "feature/ci", "feature/test-ci"]
   workflow_dispatch:
 
 permissions:
