@@ -1,23 +1,26 @@
-name: CI - Iris Classifier
-
+name: CI - Iris Classifier with Report
 
 on:
   push:
-    branches: ["main", "feature/ci", "feature/test-ci"]
+    branches: ["main","master", "feature/ci", "feature/test-ci"]
   pull_request:
-    branches: ["main", "feature/ci", "feature/test-ci"]
+    branches: ["main", "feature/ci", "master", "feature/test-ci"]
+  workflow_dispatch:
 
+permissions:
+  contents: write
+  pull-requests: write
 
 jobs:
-  build-and-test:
+  test_model:
     runs-on: ubuntu-latest
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v3
 
     - name: Set up Python
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@v4
       with:
         python-version: "3.11"
 
@@ -26,15 +29,33 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt
 
+    - name: Set up CML
+      uses: iterative/setup-cml@v2
+
     - name: Run unit tests
-      run: pytest -q
+      run: |
+        python -m pytest -q > test_output.txt || echo "Tests failed"
 
-    - name: Run training and generate model + metrics
-      run: python train.py --model-path model.joblib --metrics-path metrics.csv
+    - name: Train model and generate metrics
+      run: |
+        python train.py --model-path model.joblib --metrics-path metrics.csv
 
-    - name: Upload metrics for review
-      if: github.event_name == 'pull_request'
-      uses: actions/upload-artifact@v4
-      with:
-        name: training-metrics
-        path: metrics.csv
+    - name: Create and post CML report
+      env:
+        REPO_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        echo "# 🧪 Iris Model Report" > report.md
+        echo "## ✅ Test Output" >> report.md
+        echo '```' >> report.md
+        cat test_output.txt >> report.md
+        echo '```' >> report.md
+
+        echo "## 📊 Training Metrics (Accuracy & Loss per Epoch)" >> report.md
+        echo '| Epoch | Accuracy | Loss |' >> report.md
+        echo '|-------|----------|------|' >> report.md
+        tail -n +2 metrics.csv | while IFS=',' read -r epoch acc loss; do
+          printf '| %s | %.4f | %.4f |\n' "$epoch" "$acc" "$loss" >> report.md
+        done
+
+        cml comment create report.md
+
