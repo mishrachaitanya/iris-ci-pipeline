@@ -1,14 +1,14 @@
-name: CI - Iris Classifier with Report
+name: CI - Iris Classifier with Report and Accuracy Gate
 
 on:
   push:
-    branches: ["main", "master", "feature/ci", "feature/test-ci"]
+    branches: [ "main", "master", "feature/ci", "feature/test-ci" ]
   pull_request:
-    branches: ["main", "master", "feature/ci", "feature/test-ci"]
+    branches: [ "main", "master", "feature/ci", "feature/test-ci" ]
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: write          # needed for CML to comment
   pull-requests: write
 
 jobs:
@@ -16,6 +16,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+    # ───────────────────────── 1. CHECKOUT & PYTHON ──────────────────────────
     - name: Checkout code
       uses: actions/checkout@v3
 
@@ -24,6 +25,7 @@ jobs:
       with:
         python-version: "3.11"
 
+    # ──────────────────────── 2. DEPENDENCIES & CML ─────────────────────────
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
@@ -32,19 +34,39 @@ jobs:
     - name: Set up CML
       uses: iterative/setup-cml@v2
 
+    # ─────────────────────────── 3. UNIT TESTS ──────────────────────────────
     - name: Run unit tests
       run: |
-        python -m pytest | tee test_output.txt || echo "Tests failed"
+        python -m pytest -q | tee test_output.txt
 
+    # ─────────────────────────── 4. TRAIN MODEL ─────────────────────────────
     - name: Train model and generate metrics
       run: |
         python train.py --model-path model.joblib --metrics-path metrics.csv
 
+    # ───────────────── 5. FAIL WORKFLOW IF ACCURACY TOO LOW ─────────────────
+    - name: Fail if accuracy below threshold
+      id: accuracy_check
+      run: |
+        THRESHOLD=0.90                       # ← change as required
+        LAST_ACC=$(tail -n 1 metrics.csv | cut -d',' -f2)
+        echo "Final-epoch accuracy: $LAST_ACC  (threshold $THRESHOLD)"
+        # compare as floats
+        if [ "$(echo "$LAST_ACC < $THRESHOLD" | bc -l)" -eq 1 ]; then
+          echo "❌ Accuracy below threshold – failing the job."
+          exit 1
+        else
+          echo "✅ Accuracy meets threshold."
+        fi
+
+    # ──────────────────────── 6. POST CML REPORT ────────────────────────────
     - name: Create and post CML report
+      if: always()                      # run even if tests fail, but job already fails above on low acc
       env:
         REPO_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
         echo "# Iris Model Report" > report.md
+
         echo "## Test Output" >> report.md
         echo '```' >> report.md
         cat test_output.txt >> report.md
