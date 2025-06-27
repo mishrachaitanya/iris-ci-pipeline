@@ -2,7 +2,7 @@ name: CI - Iris Classifier
 
 on:
   push:
-    branches: ["main"]
+    branches: ["main","feature/ci"]
   pull_request:
 
 jobs:
